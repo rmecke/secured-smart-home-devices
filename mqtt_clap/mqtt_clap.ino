@@ -21,8 +21,22 @@ int valAnalog = 0;
 int valDigital;
 int clapped = 0;
 int clapCounter = 0;
-int lastClap = 0;
+int lastClap = 5000;
 boolean ledStatus = false;
+
+const int sampleWindow = 20;
+const int sampleWindowInner = 1;
+unsigned int sample;
+
+unsigned long startMillis = 10;
+unsigned long startMillisInner = 0;
+unsigned int signalMax = 0;
+unsigned int signalMin = 1024;
+
+const int clapWindowMin = 100;
+const int clapWindowMax = 1000;
+
+double treshold = 2;
 
 void setup_wifi() {
 
@@ -83,34 +97,33 @@ void reconnect() {
   }
 }
 
-int clapCheck() {  
-  //int valAnalog = analogRead(POTI);
-  int valDigital = digitalRead(MIK);
-  int result = 0;
-
-  if (millis() - lastClap >= 200) {
-    if (clapped == 0) {
-      if (valDigital == 1) {
-          clapped = 1;
-          clapCounter += 1;
-          lastClap = millis();
-          Serial.println("Clapped");  
-      }
+int clapCheck(double sig) {
+  
+  if (millis() - lastClap < clapWindowMin) {
+  
+  } else if (millis() - lastClap < clapWindowMax) {
+    if (clapCounter >= 1 && sig >= treshold) {
+      clapCounter += 1;
+      Serial.println(sig);
+      lastClap = millis();
+    }
+  } else {
+    if (clapCounter > 0) {
+      Serial.print("clapped:");
+      Serial.println(clapCounter);
+      client.publish("test/clap",String(clapCounter).c_str());
+      
+      clapCounter = 0;
     } else {
-      if (valDigital == 0) {
-        clapped = 0;
+      if (sig >= treshold) {
+        clapCounter = 1;
+        Serial.println(sig);
+        lastClap = millis();
       }
     }
   }
 
-  if (millis() - lastClap >= 1000 && clapCounter > 0) {
-      Serial.println(clapCounter);
-      result = clapCounter;
-      client.publish("test/clap",String(clapCounter).c_str());
-      clapCounter = 0;
-  }
-
-  return result;
+  return 0;
 }
 
 void setup() {
@@ -124,34 +137,43 @@ void setup() {
 }
 
 void loop() {
-
   if (!client.connected()) {
     reconnect();
   }
   client.loop();
 
-  unsigned long now = millis();
-  if (now - lastMsg > 2000) {
-    lastMsg = now;
-    ++value;
+  readAudio();
+}
+
+int readAudio() {
+  if (millis() - startMillis < sampleWindow) {
+    if (millis() - startMillisInner > sampleWindowInner) {
+      sample = system_adc_read();
+      if (sample < 1024) {
+          if (sample > signalMax)
+          {
+            signalMax = sample;
+          }
+          else if (sample < signalMin)
+          {
+            signalMin = sample;
+          }
+      }
+      startMillisInner = millis();
+    }
   }
 
-  /*
-  //Serial.println(digitalRead(MIK));
+  if (millis() - startMillis > sampleWindow) {
+    startMillis = millis();
+    unsigned int peakToPeak = signalMax - signalMin;
+    double sig = (peakToPeak * 5.0) / 1024;
+    signalMax = 0;
+    signalMin = 1024;
+    //Serial.print("Analog signal: ");
+    //Serial.println(sig);
 
-  valAnalog = analogRead(POTI);
-  //Serial.println(valAnalog, DEC);
+    clapCheck(sig);
+  }
 
-  int data = digitalRead(MIK);
-  if(data==1) {
-    if (ledStatus==false) {
-      ledStatus=true;
-      digitalWrite(BUILTIN_LED,LOW);
-    } else {
-      ledStatus=false;
-      digitalWrite(BUILTIN_LED,HIGH);
-    }
-  }*/
-
-  clapCheck();
+  return 0;
 }
