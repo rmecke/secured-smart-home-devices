@@ -24,7 +24,7 @@
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-const char* client_name = "PLANT";
+const char* client_name = "LIGHT-1";
 const char* ssid = "WLAN-AKX7YW";
 const char* password = "7527024998732131";
 const char* mqtt_server = "192.168.2.120";
@@ -35,32 +35,38 @@ PubSubClient client(espClient);
 #include <time.h>
 int lastSign = 0;
 
-// Sensor
-int valAnalog = 0;
-int lastRead = 0;
-int LED     = LED_BUILTIN;
-int SENSOR = 0;
+// Touch
+int touchPin = 5; //output from TTP223
+int val = 0;
+int lastTouch = 0;
+int touchCounter = 0;
+int touched = 0;
+
+// Relais
+int relaisPin = 4;
+int relaisState = 0;
 
 // Topics
-const char* topic_water = "my-room/plant/water";
-const char* topic_heartbeat = "my-room/plant/heartbeat";
-const char* topic_restart = "my-room/plant/restart";
+const char* topic_switch = "my-room/light-1/switch";
+const char* topic_touch = "my-room/light-1/touch";
+const char* topic_heartbeat = "my-room/light-1/heartbeat";
+const char* topic_restart = "my-room/ceiling/restart";
 
 void setup_wifi() {
   delay(10);
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
-
+ 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-
+ 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   randomSeed(micros());
-
+ 
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
@@ -78,6 +84,7 @@ void reconnect() {
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
+      client.subscribe(topic_switch);
       client.subscribe(topic_restart);
     } else {
       if (WiFi.status() != WL_CONNECTED) {
@@ -88,6 +95,7 @@ void reconnect() {
         WiFi.begin(ssid, password);
  
         while (WiFi.status() != WL_CONNECTED) {
+          lostProtocol();
           delay(500);
           Serial.print(".");
         }
@@ -103,7 +111,7 @@ void reconnect() {
       //MQTT Offline --> Lost-Protocol
       while (millis()-lastMillis < 5000) { 
         lostProtocol();
-        delay(10);
+        delay(50);
       }      
     }
   }
@@ -117,6 +125,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
+
+  if ( strcmp( topic, topic_switch ) == 0 ) {  
+    String relaisStr = "";
+    for (int i = 0; i < length; i++) { relaisStr += (char)payload[i]; }
+
+    relaisState = (relaisStr == "true") ? HIGH : LOW;
+
+    if (relaisState == LOW) {
+      digitalWrite(relaisPin, LOW);
+    } else {
+      digitalWrite(relaisPin, HIGH);
+    }
+  }
 
   if ( strcmp( topic, topic_restart ) == 0 )
   {  
@@ -134,17 +155,42 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-void readSensor() {  
-  if (millis() - lastRead >= 1000) {
-      valAnalog = analogRead(SENSOR);
-      Serial.println(valAnalog);
-      client.publish(topic_water,String(valAnalog).c_str());
-      lastRead = millis();
+int touchCheck() {
+  val = digitalRead(touchPin);
+  int result = 0;
+  
+  if (touched == 0) {
+    if (val == 1) {
+      touched = 1;
+      touchCounter += 1;
+      lastTouch = millis();
+
+      Serial.println("Touched");    
+    }
+  } else {
+    if (val == 0) {
+      touched = 0;
+    }
   }
+
+  if (millis() - lastTouch >= 1000 && touchCounter > 0) {
+      Serial.println(touchCounter);
+      result = touchCounter;
+      client.publish(topic_touch,String(touchCounter).c_str());
+      touchCounter = 0;
+  }
+
+  return result;
 }
 
 void lostProtocol() {
-  digitalWrite(relaisPin, HIGH);
+  if (touchCheck() == 1) {
+    if (digitalRead(relaisPin) == LOW) {
+      digitalWrite(relaisPin, HIGH);
+    } else {
+      digitalWrite(relaisPin, LOW);
+    }
+  }
 }
 
 void signOfLife() {
@@ -160,16 +206,20 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+ 
+  pinMode(touchPin, INPUT); 
+  pinMode(relaisPin, OUTPUT);
 }
 
 void loop() {
   if (!client.connected()) {
+    client.unsubscribe(topic_switch);
     client.unsubscribe(topic_restart);
-
+    
     reconnect();
   }
   client.loop();
-
-  readSensor();
+  
+  touchCheck();
   signOfLife();
 }

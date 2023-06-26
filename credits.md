@@ -1,0 +1,11 @@
+# Fritzing parts
+- Temperature (DHT11): https://forum.fritzing.org/t/humidity-and-temperature-sensor-dht11/6307
+- https://github.com/adafruit/Fritzing-Library/blob/master/parts/DHT11%20Humitidy%20and%20Temperature%20Sensor.fzpz
+- https://github.com/adafruit/Fritzing-Library
+- https://github.com/adafruit/DHT-sensor-library
+- https://github.com/roman-miniailov/fritzing-parts
+- https://forum.fritzing.org/t/part-request-for-this-ac-dc-converter/6795/4
+- https://arduinomodules.info/download/ky-019-5v-relay-module-zip-file/
+- https://fritzing.org/projects/iot-switch-onoff-220-240v-device-with-nodemcu-5v-r
+- https://fritzing.org/projects/capacitive-sensor-with-ttp223b-chip (TTP223)
+- https://github.com/OgreTransporter/fritzing-parts-extra (Capacative Moisture)

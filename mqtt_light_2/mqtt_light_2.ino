@@ -24,7 +24,7 @@
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-const char* client_name = "PLANT";
+const char* client_name = "LIGHT-2";
 const char* ssid = "WLAN-AKX7YW";
 const char* password = "7527024998732131";
 const char* mqtt_server = "192.168.2.120";
@@ -35,16 +35,15 @@ PubSubClient client(espClient);
 #include <time.h>
 int lastSign = 0;
 
-// Sensor
-int valAnalog = 0;
-int lastRead = 0;
-int LED     = LED_BUILTIN;
-int SENSOR = 0;
+// Relais
+int relaisPin = 5;
+int relaisState = 0;
+boolean valueSwitch = false;
 
 // Topics
-const char* topic_water = "my-room/plant/water";
-const char* topic_heartbeat = "my-room/plant/heartbeat";
-const char* topic_restart = "my-room/plant/restart";
+const char* topic_switch = "my-room/light-2/switch";
+const char* topic_heartbeat = "my-room/light-2/heartbeat";
+const char* topic_restart = "my-room/light-2/restart";
 
 void setup_wifi() {
   delay(10);
@@ -78,6 +77,7 @@ void reconnect() {
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
+      client.subscribe(topic_switch);
       client.subscribe(topic_restart);
     } else {
       if (WiFi.status() != WL_CONNECTED) {
@@ -118,6 +118,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println();
 
+  if ( strcmp( topic, topic_switch ) == 0 ) {
+    String relaisStr = "";
+    for (int i = 0; i < length; i++) { relaisStr += (char)payload[i]; }
+
+    relaisState = (relaisStr == "true") ? HIGH : LOW;
+
+    if (relaisState == LOW) {
+      digitalWrite(relaisPin, LOW);
+    } else {
+      digitalWrite(relaisPin, HIGH);
+    }
+  }
+
   if ( strcmp( topic, topic_restart ) == 0 )
   {  
     String restartStr = "";
@@ -131,15 +144,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
       delay (1000);
       ESP.restart();
     }
-  }
-}
-
-void readSensor() {  
-  if (millis() - lastRead >= 1000) {
-      valAnalog = analogRead(SENSOR);
-      Serial.println(valAnalog);
-      client.publish(topic_water,String(valAnalog).c_str());
-      lastRead = millis();
   }
 }
 
@@ -160,16 +164,18 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+
+  pinMode(relaisPin, OUTPUT);
 }
 
 void loop() {
   if (!client.connected()) {
+    client.unsubscribe(topic_switch);
     client.unsubscribe(topic_restart);
 
     reconnect();
   }
   client.loop();
 
-  readSensor();
   signOfLife();
 }

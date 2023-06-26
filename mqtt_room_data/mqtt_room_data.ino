@@ -24,7 +24,7 @@
 #include <Wire.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-const char* client_name = "PLANT";
+const char* client_name = "ROOM-DATA";
 const char* ssid = "WLAN-AKX7YW";
 const char* password = "7527024998732131";
 const char* mqtt_server = "192.168.2.120";
@@ -35,32 +35,63 @@ PubSubClient client(espClient);
 #include <time.h>
 int lastSign = 0;
 
-// Sensor
-int valAnalog = 0;
-int lastRead = 0;
+// Clap
 int LED     = LED_BUILTIN;
-int SENSOR = 0;
+int MIK     = 16;
+int POTI    = 0;
+int valAnalog = 0;
+int valDigital;
+int clapped = 0;
+int clapCounter = 0;
+int lastClap = 5000;
+boolean ledStatus = false;
+
+const int sampleWindow = 20;
+const int sampleWindowInner = 1;
+unsigned int sample;
+
+unsigned long startMillis = 10;
+unsigned long startMillisInner = 0;
+unsigned int signalMax = 0;
+unsigned int signalMin = 1024;
+
+const int clapWindowMin = 100;
+const int clapWindowMax = 1000;
+
+double treshold = 2;
+
+// Temperature
+#include "DHT.h"
+#define DHTPIN 5
+#define DHTTYPE DHT11
+int TEMP_PIN = 5;
+float temperature = 0;
+float humidity = 0;
+DHT dht(DHTPIN, DHTTYPE);
+int lastRead = 0;
 
 // Topics
-const char* topic_water = "my-room/plant/water";
-const char* topic_heartbeat = "my-room/plant/heartbeat";
-const char* topic_restart = "my-room/plant/restart";
+const char* topic_clap = "my-room/room-data/clap";
+const char* topic_temperature = "my-room/room-data/temperature";
+const char* topic_humidty = "my-room/room-data/humidty";
+const char* topic_heartbeat = "my-room/room-data/heartbeat";
+const char* topic_restart = "my-room/room-data/restart";
 
 void setup_wifi() {
   delay(10);
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
-
+ 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-
+ 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   randomSeed(micros());
-
+ 
   Serial.println("");
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
@@ -88,6 +119,7 @@ void reconnect() {
         WiFi.begin(ssid, password);
  
         while (WiFi.status() != WL_CONNECTED) {
+          lostProtocol();
           delay(500);
           Serial.print(".");
         }
@@ -103,7 +135,7 @@ void reconnect() {
       //MQTT Offline --> Lost-Protocol
       while (millis()-lastMillis < 5000) { 
         lostProtocol();
-        delay(10);
+        delay(50);
       }      
     }
   }
@@ -134,17 +166,85 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-void readSensor() {  
-  if (millis() - lastRead >= 1000) {
-      valAnalog = analogRead(SENSOR);
-      Serial.println(valAnalog);
-      client.publish(topic_water,String(valAnalog).c_str());
-      lastRead = millis();
+int clapCheck(double sig) {
+  if (millis() - lastClap < clapWindowMin) {
+  
+  } else if (millis() - lastClap < clapWindowMax) {
+    if (clapCounter >= 1 && sig >= treshold) {
+      clapCounter += 1;
+      Serial.println(sig);
+      lastClap = millis();
+    }
+  } else {
+    if (clapCounter > 1) {
+      Serial.print("clapped:");
+      Serial.println(clapCounter);
+      client.publish(topic_clap,String(clapCounter).c_str());
+      
+      clapCounter = 0;
+    } else {
+      if (sig >= treshold) {
+        clapCounter = 1;
+        Serial.println(sig);
+        lastClap = millis();
+      }
+    }
   }
+
+  return 0;
 }
 
+int readAudio() {
+  if (millis() - startMillis < sampleWindow) {
+    if (millis() - startMillisInner > sampleWindowInner) {
+      sample = system_adc_read();
+      if (sample < 1024) {
+          if (sample > signalMax)
+          {
+            signalMax = sample;
+          }
+          else if (sample < signalMin)
+          {
+            signalMin = sample;
+          }
+      }
+      startMillisInner = millis();
+    }
+  }
+
+  if (millis() - startMillis > sampleWindow) {
+    startMillis = millis();
+    unsigned int peakToPeak = signalMax - signalMin;
+    double sig = (peakToPeak * 5.0) / 1024;
+    signalMax = 0;
+    signalMin = 1024;
+    //Serial.print("Analog signal: ");
+    //Serial.println(sig);
+
+    clapCheck(sig);
+  }
+
+  return 0;
+}
+
+int readTemperature() {
+  if (millis() - lastRead >= 1000) {
+      temperature = dht.readTemperature();
+      humidity = dht.readHumidity();
+      String str = "Temperatur: " + String(temperature) + " °C // Luftfeuchtigkeit: " + String(humidity) + " %";
+      // Serial.println(str);
+      client.publish(topic_temperature,String(temperature).c_str());
+      client.publish(topic_humidty,String(humidity).c_str());
+      lastRead = millis();
+  }
+  
+
+  return 0;
+}
+
+
 void lostProtocol() {
-  digitalWrite(relaisPin, HIGH);
+
 }
 
 void signOfLife() {
@@ -160,16 +260,23 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+ 
+  pinMode(BUILTIN_LED,OUTPUT);
+  pinMode(MIK,INPUT);
+  pinMode(TEMP_PIN,INPUT);
+
+  dht.begin();
 }
 
 void loop() {
   if (!client.connected()) {
     client.unsubscribe(topic_restart);
-
+    
     reconnect();
   }
   client.loop();
-
-  readSensor();
+  
+  readAudio();
+  readTemperature();
   signOfLife();
 }
