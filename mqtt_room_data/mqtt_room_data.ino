@@ -69,6 +69,7 @@ float temperature = 0;
 float humidity = 0;
 DHT dht(DHTPIN, DHTTYPE);
 int lastRead = 0;
+int COOLDOWN = 60000;
 
 // Topics
 const char* topic_clap = "my-room/room-data/clap";
@@ -228,7 +229,7 @@ int readAudio() {
 }
 
 int readTemperature() {
-  if (millis() - lastRead >= 1000) {
+  if (millis() - lastRead >= COOLDOWN) {
       temperature = dht.readTemperature();
       humidity = dht.readHumidity();
       String str = "Temperatur: " + String(temperature) + " °C // Luftfeuchtigkeit: " + String(humidity) + " %";

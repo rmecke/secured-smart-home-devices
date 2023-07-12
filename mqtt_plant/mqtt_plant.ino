@@ -40,6 +40,7 @@ int valAnalog = 0;
 int lastRead = 0;
 int LED     = LED_BUILTIN;
 int SENSOR = 0;
+int COOLDOWN = 60000;
 
 // Topics
 const char* topic_water = "my-room/plant/water";
@@ -135,7 +136,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void readSensor() {  
-  if (millis() - lastRead >= 1000) {
+  if (millis() - lastRead >= COOLDOWN) {
       valAnalog = analogRead(SENSOR);
       Serial.println(valAnalog);
       client.publish(topic_water,String(valAnalog).c_str());
