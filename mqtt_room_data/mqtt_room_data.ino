@@ -73,7 +73,7 @@ int lastRead = 0;
 // Topics
 const char* topic_clap = "my-room/room-data/clap";
 const char* topic_temperature = "my-room/room-data/temperature";
-const char* topic_humidty = "my-room/room-data/humidty";
+const char* topic_humidity = "my-room/room-data/humidity";
 const char* topic_heartbeat = "my-room/room-data/heartbeat";
 const char* topic_restart = "my-room/room-data/restart";
 
@@ -234,7 +234,7 @@ int readTemperature() {
       String str = "Temperatur: " + String(temperature) + " °C // Luftfeuchtigkeit: " + String(humidity) + " %";
       // Serial.println(str);
       client.publish(topic_temperature,String(temperature).c_str());
-      client.publish(topic_humidty,String(humidity).c_str());
+      client.publish(topic_humidity,String(humidity).c_str());
       lastRead = millis();
   }
   

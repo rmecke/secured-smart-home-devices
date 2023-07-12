@@ -50,7 +50,7 @@ int relaisState = 0;
 const char* topic_switch = "my-room/light-1/switch";
 const char* topic_touch = "my-room/light-1/touch";
 const char* topic_heartbeat = "my-room/light-1/heartbeat";
-const char* topic_restart = "my-room/ceiling/restart";
+const char* topic_restart = "my-room/light-1/restart";
 
 void setup_wifi() {
   delay(10);
