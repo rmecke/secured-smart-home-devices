@@ -145,7 +145,7 @@ void readSensor() {
 }
 
 void lostProtocol() {
-  digitalWrite(relaisPin, HIGH);
+  
 }
 
 void signOfLife() {

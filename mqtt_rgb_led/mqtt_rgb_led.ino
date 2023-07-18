@@ -48,11 +48,11 @@ int valueIntensity = 0;
 String valueColor = "red";
 
 // Topics
-const char* topic_switch = "my-room/rgb-led/switch";
-const char* topic_intensity = "my-room/rgb-led/intensity";
-const char* topic_color = "my-room/rgb-led/color";
-const char* topic_heartbeat = "my-room/rgb-led/heartbeat";
-const char* topic_restart = "my-room/rgb-led/restart";
+const char* topic_switch = "lab/rgb-led/switch";
+const char* topic_intensity = "lab/rgb-led/intensity";
+const char* topic_color = "lab/rgb-led/color";
+const char* topic_heartbeat = "lab/rgb-led/heartbeat";
+const char* topic_restart = "lab/rgb-led/restart";
 
 void setup_wifi() {
   delay(10);
