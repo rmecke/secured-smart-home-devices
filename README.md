@@ -7,7 +7,8 @@ instead the sensors just collect and maybe count inputs and send the final retri
 
 ## Usage
 The ESP-8266 is being programmed using the Arduino development environment, therefore every "mqtt_*" folder represents one project.
-Since every device needs to communicate with the ioBroker, we use MQTT as communication protocol.
+
+Since every device needs to communicate with the ioBroker, we use MQTT as communication protocol. Also configure the mqtt-topics if necessary.
 
 Therefore the SSID and password of the home WLAN needs to be specified in every file. Also the IP of the iobroker device needs to be configured.
 Ensure in your router options, that this iobroker IP is fixed. Otherwise the devices won't be able to communicate with iobroker.
